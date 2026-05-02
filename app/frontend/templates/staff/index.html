@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Staff — Loan Manager</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="layout">
+  <div class="sidebar">
+    <h3>Staff Panel</h3>
+    <a href="#" id="nav-requests" onclick="show('requests')">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Loan Requests
+    </a>
+    <a href="#" id="nav-users" onclick="show('users')">
+      <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Branch Borrowers
+    </a>
+    <a href="#" id="nav-active" onclick="show('active')">
+      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Active Loans
+    </a>
+    <a href="#" id="nav-archive" onclick="show('archive')">
+      <svg viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>Loan Archive
+    </a>
+    <a href="#" id="nav-audit" onclick="show('audit')">
+      <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>Audit Log
+    </a>
+    <button class="logout" onclick="logout()">
+      <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;vertical-align:middle;margin-right:5px"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Logout
+    </button>
+  </div>
+  <div class="content">
+
+    <!-- Loan Requests -->
+    <div id="sec-requests" class="section" style="display:none">
+      <h2>Pending Loan Requests</h2>
+      <p class="section-meta">New loan applications waiting for your approval at this branch.</p>
+      <div id="requests-table"></div>
+    </div>
+
+    <!-- Branch Borrowers -->
+    <div id="sec-users" class="section" style="display:none">
+      <h2>Branch Borrowers</h2>
+      <p class="section-meta">All borrower accounts registered at this branch.</p>
+      <div id="users-table"></div>
+    </div>
+
+    <!-- Active Loans -->
+    <div id="sec-active" class="section" style="display:none">
+      <h2>Active Loans</h2>
+      <p class="section-meta">Currently running loans — EMI progress and risk status at a glance.</p>
+      <div id="active-loans-table"></div>
+    </div>
+
+    <!-- Loan Archive -->
+    <div id="sec-archive" class="section" style="display:none">
+      <h2>Loan Archive</h2>
+      <p class="section-meta">Completed and rejected loans at this branch.</p>
+      <div id="archive-table"></div>
+    </div>
+
+    <!-- Audit Log -->
+    <div id="sec-audit" class="section" style="display:none">
+      <h2>Audit Log</h2>
+      <p class="section-meta">All entity changes related to this branch.</p>
+      <div id="audit-table"></div>
+    </div>
+
+  </div>
+</div>
+<script src="/static/app.js"></script>
+<script>
+function show(section) {
+  document.querySelectorAll(".section").forEach(s => s.style.display = "none");
+  document.querySelectorAll(".sidebar a").forEach(a => a.classList.remove("active"));
+  document.getElementById("sec-" + section).style.display = "block";
+  const nav = document.getElementById("nav-" + section);
+  if (nav) nav.classList.add("active");
+  if (section === "requests") loadRequests();
+  if (section === "users")    loadUsers();
+  if (section === "active")   loadActiveLoans();
+  if (section === "archive")  loadLoanArchive();
+  if (section === "audit")    loadAuditLog();
+}
+
+async function loadRequests() {
+  const data = await (await apiFetch("/staff/loan-requests")).json();
+  renderTable("requests-table", data, [
+    { key: "borrower_name", label: "Borrower" },
+    { key: "loan_type",     label: "Type" },
+    { label: "Amount",      render: r => fmtCurrency(r.amount) },
+    { key: "interest_rate", label: "Rate (%)" },
+    { key: "tenure_months", label: "Tenure (mo)" },
+    { label: "Actions", render: r => `
+      <button class="btn btn-green" onclick="approveLoan(${r.loan_id})">Approve</button>
+      <button class="btn btn-red"   onclick="rejectLoan(${r.loan_id})">Reject</button>
+    `}
+  ]);
+}
+
+async function approveLoan(id) {
+  if (!confirm("Approve this loan and generate EMI schedule?")) return;
+  await apiFetch("/staff/loan-requests/approve", { method: "POST", headers: authHeaders(), body: JSON.stringify({ loan_id: id }) });
+  loadRequests();
+}
+
+async function rejectLoan(id) {
+  if (!confirm("Reject this loan application?")) return;
+  await apiFetch("/staff/loan-requests/reject", { method: "POST", headers: authHeaders(), body: JSON.stringify({ loan_id: id }) });
+  loadRequests();
+}
+
+async function loadUsers() {
+  const data = await (await apiFetch("/staff/branch-users")).json();
+  renderTable("users-table", data, [
+    { key: "name",     label: "Name" },
+    { key: "username", label: "Username" },
+    { key: "phone",    label: "Phone" },
+    { key: "email",    label: "Email" }
+  ]);
+}
+
+async function loadActiveLoans() {
+  const data = await (await apiFetch("/staff/active-loans")).json();
+  renderTable("active-loans-table", data, [
+    { key: "borrower_name", label: "Borrower" },
+    { key: "loan_type",     label: "Type" },
+    { label: "Amount",      render: r => fmtCurrency(r.amount) },
+    { label: "Risk",        render: r => riskBadge(r.bucket_name) },
+    { label: "EMI Progress", render: r => `
+      <div style="min-width:110px">
+        <div style="font-size:0.78rem;color:#555;margin-bottom:3px">${r.paid_emis} / ${r.total_emis} paid</div>
+        <div class="progress-track"><div class="progress-bar" style="width:${r.total_emis ? Math.round(r.paid_emis/r.total_emis*100) : 0}%"></div></div>
+      </div>
+    `},
+    { key: "next_due_date", label: "Next Due" }
+  ]);
+}
+
+async function loadLoanArchive() {
+  const data = await (await apiFetch("/staff/loan-archive")).json();
+  renderTable("archive-table", data, [
+    { key: "borrower_name", label: "Borrower" },
+    { key: "loan_type",     label: "Type" },
+    { label: "Amount",      render: r => fmtCurrency(r.amount) },
+    { label: "Status",      render: r => statusBadge(r.status) },
+    { key: "start_date",    label: "Date" }
+  ]);
+}
+
+function auditActionBadge(action) {
+  const map = { INSERT: "badge-active", UPDATE: "badge-pending", DELETE: "badge-rejected",
+                APPROVE: "badge-completed", REJECT: "badge-rejected", REQUEST: "badge-pending" };
+  return `<span class="badge ${map[(action||"").toUpperCase()] || "badge-pending"}">${action||""}</span>`;
+}
+
+async function loadAuditLog() {
+  const data = await (await apiFetch("/staff/audit-logs")).json();
+  renderTable("audit-table", data, [
+    { key: "change_date", label: "Date" },
+    { key: "changed_by",  label: "By" },
+    { label: "Action",    render: r => auditActionBadge(r.action) },
+    { key: "note",        label: "Details" }
+  ]);
+}
+
+if (requireRole("staff")) {
+  show("requests");
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Borrower</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="layout">
+  <div class="sidebar">
+    <h3>Borrower</h3>
+    <a href="#" onclick="show('active')"><svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Active Loans</a>
+    <a href="#" onclick="show('settled')"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Settled Loans</a>
+    <a href="#" onclick="show('request')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>Request Loan</a>
+    <a href="#" onclick="show('payment')"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Make Payment</a>
+    <a href="#" onclick="show('history')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Payment History</a>
+    <button class="logout" onclick="logout()">Logout</button>
+  </div>
+  <div class="content">
+
+    <!-- Active Loans -->
+    <div id="sec-active" class="section" style="display:none">
+      <h2>Active Loans</h2>
+      <div id="active-loans-table"></div>
+      <div id="active-loan-detail-panel" class="detail-panel" style="display:none"></div>
+    </div>
+
+    <!-- Settled Loans -->
+    <div id="sec-settled" class="section" style="display:none">
+      <h2>Settled Loans</h2>
+      <div id="settled-loans-table"></div>
+      <div id="settled-loan-detail-panel" class="detail-panel" style="display:none"></div>
+    </div>
+
+    <!-- Request Loan -->
+    <div id="sec-request" class="section" style="display:none">
+      <h2>Request a Loan</h2>
+      <div class="request-grid">
+        <div class="form-block request-card">
+          <label>Amount</label><input id="rl-amount" type="number" min="1" oninput="markCalculationDirty()">
+          <label>Loan Type</label>
+          <select id="rl-type" onchange="markCalculationDirty()">
+            <option value="Personal">Personal</option>
+            <option value="Home">Home</option>
+            <option value="Auto">Auto</option>
+            <option value="Business">Business</option>
+          </select>
+          <label>Tenure (months)</label><input id="rl-tenure" type="number" min="1" oninput="markCalculationDirty()">
+          <button onclick="calculateInterest()">Calculate Interest</button>
+          <div class="rate-preview" id="rl-rate-preview">Enter loan details to calculate your interest rate.</div>
+          <div class="repayment-preview" id="rl-repayment-preview">
+            <div><strong>Monthly Installment:</strong> -</div>
+            <div><strong>Total Payment:</strong> -</div>
+          </div>
+          <div class="msg" id="rl-msg"></div>
+          <button id="rl-submit" class="secondary-action" onclick="submitLoan()" disabled>Submit Loan Request</button>
+        </div>
+        <div class="request-rules">
+          <h3>Interest Rate Logic</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Rule</th>
+                <th>Effect</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Personal loan</td>
+                <td>Base 12.0%</td>
+              </tr>
+              <tr>
+                <td>Home loan</td>
+                <td>Base 8.5%</td>
+              </tr>
+              <tr>
+                <td>Auto loan</td>
+                <td>Base 9.5%</td>
+              </tr>
+              <tr>
+                <td>Business loan</td>
+                <td>Base 13.0%</td>
+              </tr>
+              <tr>
+                <td>Tenure above 36 months</td>
+                <td>+1.0%</td>
+              </tr>
+              <tr>
+                <td>Amount above 500000</td>
+                <td>+0.5%</td>
+              </tr>
+              <tr>
+                <td>One successful prior tenure</td>
+                <td>-0.1% once</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="rules-note">The final rate is calculated automatically by the system before a request is submitted.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Make Payment -->
+    <div id="sec-payment" class="section" style="display:none">
+      <h2>Make Payment</h2>
+      <div class="payment-grid">
+        <div class="form-block payment-card">
+          <p class="payment-intro">Pick a loan, choose when to pay, then confirm payment mode.</p>
+          <label for="pay-loan">Select Active Loan</label>
+          <select id="pay-loan" onchange="refreshPaymentView()"></select>
+
+          <div class="payment-stats">
+            <div class="stat-box">
+              <div class="stat-label">EMIs Paid</div>
+              <div class="stat-value" id="pay-stat-paid">0 / 0</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Amount Left</div>
+              <div class="stat-value" id="pay-stat-left">0.00</div>
+            </div>
+          </div>
+
+          <div class="payment-meta" id="pay-meta">
+            <div><strong>Loan Start Date:</strong> -</div>
+            <div><strong>Pay Before:</strong> -</div>
+            <div><strong>Expected End Date:</strong> -</div>
+            <div><strong>Approved By:</strong> -</div>
+            <div><strong>Progress:</strong> <span id="pay-progress-text">0%</span></div>
+            <div class="progress-track"><div id="pay-progress-bar" class="progress-bar"></div></div>
+          </div>
+
+          <div class="field-title">Payment Plan</div>
+          <div class="plan-radios">
+            <label class="radio-option"><input type="radio" name="pay-plan" value="current" checked onchange="refreshPaymentView()"> Current Month</label>
+            <label class="radio-option"><input type="radio" name="pay-plan" value="next" onchange="refreshPaymentView()"> Next Month</label>
+            <label class="radio-option"><input type="radio" name="pay-plan" value="custom" onchange="refreshPaymentView()"> Custom</label>
+          </div>
+
+          <div id="pay-custom-wrap" class="custom-wrap" style="display:none">
+            <label for="pay-emi-select">Select EMI Deadline</label>
+            <select id="pay-emi-select" onchange="refreshPaymentView()"></select>
+            <p class="rules-note">Selects all pending EMIs up to and including the chosen deadline.</p>
+          </div>
+
+          <label for="pay-amount">Payable Amount</label>
+          <input id="pay-amount" type="text" readonly>
+
+          <div class="payment-actions">
+            <div>
+              <label for="pay-mode">Payment Mode</label>
+              <select id="pay-mode">
+                <option value="Cash">Cash</option>
+                <option value="Online">Online</option>
+                <option value="Cheque">Cheque</option>
+              </select>
+            </div>
+            <button onclick="submitPayment()">Pay Now</button>
+          </div>
+          <div class="msg" id="pay-msg"></div>
+          <div id="pay-receipt" class="receipt-card" style="display:none"></div>
+        </div>
+
+        <div class="payment-rules">
+          <h3>Quick Amount Guide</h3>
+          <div class="plan-cards">
+            <div class="plan-card">
+              <div class="plan-name">Current Month</div>
+              <div class="plan-amount" id="plan-one">-</div>
+            </div>
+            <div class="plan-card">
+              <div class="plan-name">Next Month</div>
+              <div class="plan-amount" id="plan-three">-</div>
+            </div>
+            <div class="plan-card">
+              <div class="plan-name">Total Remaining</div>
+              <div class="plan-amount" id="plan-full">-</div>
+            </div>
+          </div>
+          <p class="rules-note">Custom lets you pick a due-date target and auto-includes all pending EMIs up to that target.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Payment History -->
+    <div id="sec-history" class="section" style="display:none">
+      <h2>Payment History</h2>
+      <div id="history-table"></div>
+    </div>
+
+  </div>
+</div>
+<script src="/static/app.js"></script>
+<script>
+let latestRate = null;
+let lastCalculatedKey = null;
+let paymentOptions = [];
+let expandedLoanId = null;
+let _paySelectedAmount = 0;
+
+function show(section) {
+  document.querySelectorAll(".section").forEach(s => s.style.display = "none");
+  document.getElementById("sec-" + section).style.display = "block";
+  if (section === "active") loadActiveLoans();
+  if (section === "settled") loadSettledLoans();
+  if (section === "payment") loadPaymentOptions();
+  if (section === "history") loadHistory();
+}
+
+async function loadActiveLoans() {
+  const res = await apiFetch("/borrower/loans");
+  const data = await res.json();
+  const active = data.filter(l => l.status !== "Completed" && l.status !== "Rejected");
+  renderTable("active-loans-table", active, [
+    { key: "loan_type",     label: "Type" },
+    { label: "Amount",      render: r => fmtCurrency(r.amount) },
+    { key: "interest_rate", label: "Rate (%)" },
+    { label: "Status",      render: r => statusBadge(r.status) },
+    { label: "EMIs Paid",   render: r => r.paid_emis + " / " + r.total_emis },
+    { label: "Details",     render: r => `<button class="btn" onclick="toggleLoanDetails(${r.loan_id}, 'active-loan-detail-panel')">${expandedLoanId === r.loan_id ? "Hide" : "Expand"}</button>` }
+  ]);
+}
+
+async function loadSettledLoans() {
+  const res = await apiFetch("/borrower/loans");
+  const data = await res.json();
+  const settled = data.filter(l => l.status === "Completed" || l.status === "Rejected");
+  renderTable("settled-loans-table", settled, [
+    { key: "loan_type",     label: "Type" },
+    { label: "Amount",      render: r => fmtCurrency(r.amount) },
+    { key: "interest_rate", label: "Rate (%)" },
+    { label: "Status",      render: r => statusBadge(r.status) },
+    { label: "EMIs Paid",   render: r => r.paid_emis + " / " + r.total_emis },
+    { label: "Details",     render: r => `<button class="btn" onclick="toggleLoanDetails(${r.loan_id}, 'settled-loan-detail-panel')">${expandedLoanId === r.loan_id ? "Hide" : "Expand"}</button>` }
+  ]);
+}
+
+function fmtDate(value) {
+  return value || "-";
+}
+
+async function toggleLoanDetails(loanId, panelId) {
+  const panel = document.getElementById(panelId);
+  if (expandedLoanId === loanId) {
+    expandedLoanId = null;
+    panel.style.display = "none";
+    return;
+  }
+  expandedLoanId = loanId;
+  const res = await apiFetch(`/borrower/loans/${loanId}/details`);
+  const data = await res.json();
+  if (!res.ok) {
+    panel.style.display = "block";
+    panel.innerHTML = `<p>${data.detail || "Unable to load loan details."}</p>`;
+    return;
+  }
+  panel.style.display = "block";
+  panel.innerHTML = `
+    <h3>Loan ${data.loan_id} Details</h3>
+    <div class="detail-grid">
+      <div><strong>Branch:</strong> ${data.branch_name}</div>
+      <div><strong>Status:</strong> ${data.status}</div>
+      <div><strong>Approved By:</strong> ${data.approved_by || "Pending"}</div>
+      <div><strong>Interest Rate:</strong> ${fmtRate(data.interest_rate)}%</div>
+      <div><strong>Monthly Installment:</strong> ${fmtAmount(data.monthly_installment)}</div>
+      <div><strong>Total Payment:</strong> ${fmtAmount(data.total_payment)}</div>
+      <div><strong>Loan Start Date:</strong> ${fmtDate(data.start_date)}</div>
+      <div><strong>Pay Before:</strong> ${fmtDate(data.next_due_date)}</div>
+      <div><strong>Expected End Date:</strong> ${fmtDate(data.expected_end_date)}</div>
+      <div><strong>EMIs Paid:</strong> ${data.paid_emis} / ${data.total_emis}</div>
+      <div><strong>Amount Left:</strong> ${fmtAmount(data.remaining_amount)}</div>
+      <div><strong>Progress:</strong> ${data.progress_percent}%</div>
+    </div>
+  `;
+}
+
+function getLoanRequestBody() {
+  return {
+    amount: Number.parseFloat(document.getElementById("rl-amount").value),
+    loan_type: document.getElementById("rl-type").value,
+    tenure_months: Number.parseInt(document.getElementById("rl-tenure").value)
+  };
+}
+
+function getLoanRequestKey(body) {
+  return JSON.stringify(body);
+}
+
+function markCalculationDirty() {
+  latestRate = null;
+  lastCalculatedKey = null;
+  document.getElementById("rl-submit").disabled = true;
+  document.getElementById("rl-msg").textContent = "";
+  document.getElementById("rl-rate-preview").textContent = "Enter loan details to calculate your interest rate.";
+  document.getElementById("rl-repayment-preview").innerHTML = `
+    <div><strong>Monthly Installment:</strong> -</div>
+    <div><strong>Total Payment:</strong> -</div>
+  `;
+}
+
+async function calculateInterest() {
+  const body = getLoanRequestBody();
+  const res = await apiFetch("/borrower/loans/calculate", { method: "POST", headers: authHeaders(), body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) {
+    document.getElementById("rl-rate-preview").textContent = "Unable to calculate interest rate.";
+    document.getElementById("rl-msg").textContent = "Error.";
+    document.getElementById("rl-submit").disabled = true;
+    latestRate = null;
+    return;
+  }
+  latestRate = data.interest_rate;
+  lastCalculatedKey = getLoanRequestKey(body);
+  document.getElementById("rl-rate-preview").textContent = data.successful_tenure_discount
+    ? `Applied interest rate: ${data.interest_rate}% (includes one-time 0.1% successful tenure discount)`
+    : `Applied interest rate: ${data.interest_rate}%`;
+  document.getElementById("rl-repayment-preview").innerHTML = `
+    <div><strong>Monthly Installment:</strong> ${fmtAmount(data.monthly_installment)}</div>
+    <div><strong>Total Payment:</strong> ${fmtAmount(data.total_payment)}</div>
+  `;
+  document.getElementById("rl-msg").textContent = "Rate calculated. Submit when ready.";
+  document.getElementById("rl-submit").disabled = false;
+}
+
+async function submitLoan() {
+  const body = getLoanRequestBody();
+  if (latestRate === null || lastCalculatedKey !== getLoanRequestKey(body)) {
+    document.getElementById("rl-msg").textContent = "Calculate interest first.";
+    return;
+  }
+  const res = await apiFetch("/borrower/loans/request", { method: "POST", headers: authHeaders(), body: JSON.stringify(body) });
+  const data = await res.json();
+  document.getElementById("rl-msg").textContent = res.ok
+    ? `Loan request submitted at ${data.interest_rate}% interest. Monthly installment ${fmtAmount(data.monthly_installment)}, total payment ${fmtAmount(data.total_payment)}.`
+    : "Error.";
+  if (res.ok) {
+    document.getElementById("rl-amount").value = "";
+    document.getElementById("rl-type").value = "Personal";
+    document.getElementById("rl-tenure").value = "";
+    document.getElementById("rl-rate-preview").textContent = "Enter loan details to calculate your interest rate.";
+    document.getElementById("rl-repayment-preview").innerHTML = `<div><strong>Monthly Installment:</strong> -</div><div><strong>Total Payment:</strong> -</div>`;
+    document.getElementById("rl-submit").disabled = true;
+    latestRate = null;
+    lastCalculatedKey = null;
+  }
+}
+
+function getSelectedPaymentOption() {
+  const loanId = Number.parseInt(document.getElementById("pay-loan").value);
+  return paymentOptions.find(o => o.loan_id === loanId);
+}
+
+function getSelectedPlan() {
+  return (document.querySelector('input[name="pay-plan"]:checked') || {}).value || "current";
+}
+
+function _parseDue(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return { year: y, month: m, day: d };
+}
+
+const _MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function refreshPaymentView() {
+  const loan = getSelectedPaymentOption();
+  if (!loan) return;
+
+  document.getElementById("pay-stat-paid").textContent = `${loan.paid_emis} / ${loan.total_emis}`;
+  document.getElementById("pay-stat-left").textContent = fmtAmount(loan.remaining_amount);
+  document.getElementById("pay-meta").innerHTML = `
+    <div><strong>Loan Start Date:</strong> ${fmtDate(loan.start_date)}</div>
+    <div><strong>Pay Before:</strong> ${fmtDate(loan.next_due_date)}</div>
+    <div><strong>Expected End Date:</strong> ${fmtDate(loan.expected_end_date)}</div>
+    <div><strong>Approved By:</strong> ${loan.approved_by || "Pending"}</div>
+    <div><strong>Progress:</strong> <span id="pay-progress-text">${loan.progress_percent}%</span></div>
+    <div class="progress-track"><div id="pay-progress-bar" class="progress-bar" style="width:${loan.progress_percent}%"></div></div>
+  `;
+
+  const now = new Date();
+  const cm = now.getMonth() + 1, cy = now.getFullYear();
+  const nm = cm === 12 ? 1 : cm + 1, ny = cm === 12 ? cy + 1 : cy;
+
+  const pendingEmis = loan.pending_emis || [];
+  const currEmi = pendingEmis.find(e => { const p = _parseDue(e.due_date); return p.month === cm && p.year === cy; });
+  const nextEmi = pendingEmis.find(e => { const p = _parseDue(e.due_date); return p.month === nm && p.year === ny; });
+
+  document.getElementById("plan-one").textContent   = currEmi ? fmtAmount(currEmi.amount_due) : `${fmtAmount(0)} (paid)`;
+  document.getElementById("plan-three").textContent = nextEmi ? fmtAmount(nextEmi.amount_due) : `${fmtAmount(0)} (paid)`;
+  document.getElementById("plan-full").textContent  = fmtAmount(loan.full_amount);
+
+  const plan = getSelectedPlan();
+  const customWrap = document.getElementById("pay-custom-wrap");
+  const emiSelect  = document.getElementById("pay-emi-select");
+
+  if (plan === "custom") {
+    customWrap.style.display = "block";
+    const previousSelection = Number.parseInt(emiSelect.value, 10) || 0;
+    const emiSignature = pendingEmis.map(e => e.emi_number).join(",");
+
+    // Repopulate when loan OR pending EMI set changes.
+    if (emiSelect.dataset.loanId !== String(loan.loan_id) || emiSelect.dataset.emiSignature !== emiSignature) {
+      emiSelect.innerHTML = pendingEmis.map(e => {
+        const p = _parseDue(e.due_date);
+        return `<option value="${e.emi_number}">EMI #${e.emi_number}  |  ${p.day} ${_MON[p.month - 1]} ${p.year}</option>`;
+      }).join("");
+      emiSelect.dataset.loanId = loan.loan_id;
+      emiSelect.dataset.emiSignature = emiSignature;
+
+      // Preserve valid previous selection, else fallback to last EMI for "pay till end" convenience.
+      const hasPrevious = pendingEmis.some(e => e.emi_number === previousSelection);
+      if (hasPrevious) {
+        emiSelect.value = String(previousSelection);
+      } else if (pendingEmis.length) {
+        emiSelect.value = String(pendingEmis[pendingEmis.length - 1].emi_number);
+      }
+    }
+
+    const selNum = Number.parseInt(emiSelect.value, 10) || 0;
+    const idx = pendingEmis.findIndex(e => e.emi_number === selNum);
+    const relevant = idx >= 0 ? pendingEmis.slice(0, idx + 1) : [];
+    _paySelectedAmount = Math.round(relevant.reduce((s, e) => s + e.amount_due, 0) * 100) / 100;
+  } else {
+    customWrap.style.display = "none";
+    const target = plan === "current" ? currEmi : nextEmi;
+    _paySelectedAmount = target ? Math.round(target.amount_due * 100) / 100 : 0;
+  }
+
+  document.getElementById("pay-amount").value = fmtAmount(_paySelectedAmount);
+}
+
+function fmtAmount(value) {
+  return fmtCurrency(value);
+}
+
+function fmtRate(value) {
+  return Number(value || 0).toLocaleString("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+async function loadPaymentOptions() {
+  const res = await apiFetch("/borrower/payment-options");
+  const data = await res.json();
+  paymentOptions = data;
+  const sel = document.getElementById("pay-loan");
+  const msg = document.getElementById("pay-msg");
+  if (!paymentOptions.length) {
+    sel.innerHTML = "<option>No active loan with pending EMIs</option>";
+    msg.textContent = "No pending EMI to pay.";
+    document.getElementById("pay-amount").value = "";
+    document.getElementById("plan-one").textContent = "-";
+    document.getElementById("plan-three").textContent = "-";
+    document.getElementById("plan-full").textContent = "-";
+    document.getElementById("pay-stat-paid").textContent = "0 / 0";
+    document.getElementById("pay-stat-left").textContent = fmtAmount(0);
+    document.getElementById("pay-meta").innerHTML = `
+      <div><strong>Loan Start Date:</strong> -</div>
+      <div><strong>Pay Before:</strong> -</div>
+      <div><strong>Expected End Date:</strong> -</div>
+      <div><strong>Approved By:</strong> -</div>
+      <div><strong>Progress:</strong> <span id="pay-progress-text">0%</span></div>
+      <div class="progress-track"><div id="pay-progress-bar" class="progress-bar"></div></div>
+    `;
+    document.getElementById("pay-receipt").style.display = "none";
+    return;
+  }
+  sel.innerHTML = paymentOptions.map(o => `<option value="${o.loan_id}">Loan ${o.loan_id}</option>`).join("");
+  msg.textContent = "";
+  refreshPaymentView();
+}
+
+async function submitPayment() {
+  const loan = getSelectedPaymentOption();
+  if (!loan) return;
+  if (_paySelectedAmount <= 0) {
+    document.getElementById("pay-msg").textContent = "No pending EMI for this period.";
+    return;
+  }
+  const body = {
+    loan_id: loan.loan_id,
+    plan: "custom",
+    payment_mode: document.getElementById("pay-mode").value,
+    custom_amount: _paySelectedAmount
+  };
+  const res = await apiFetch("/borrower/payments", { method: "POST", headers: authHeaders(), body: JSON.stringify(body) });
+  const data = await res.json();
+  document.getElementById("pay-msg").textContent = res.ok
+    ? `Payment recorded. Paid ${data.count_paid} EMI(s), amount ${fmtAmount(data.amount_paid)}.`
+    : (data.detail || "Error.");
+  if (res.ok) {
+    const receipt = data.receipt;
+    const receiptEl = document.getElementById("pay-receipt");
+    receiptEl.style.display = "block";
+    receiptEl.innerHTML = `
+      <h4>Payment Receipt</h4>
+      <div class="detail-grid">
+        <div><strong>Receipt ID:</strong> ${receipt.payment_id}</div>
+        <div><strong>Date:</strong> ${fmtDate(receipt.payment_date)}</div>
+        <div><strong>Loan ID:</strong> ${receipt.loan_id}</div>
+        <div><strong>Plan:</strong> ${receipt.plan}</div>
+        <div><strong>Payment Mode:</strong> ${receipt.payment_mode}</div>
+        <div><strong>Amount Paid:</strong> ${fmtAmount(data.amount_paid)}</div>
+        <div><strong>Paid Until EMI:</strong> ${receipt.paid_until_emi}</div>
+        <div><strong>Loan Start Date:</strong> ${fmtDate(receipt.loan_start_date)}</div>
+        <div><strong>Pay Before:</strong> ${fmtDate(receipt.pay_before_date)}</div>
+        <div><strong>Expected End Date:</strong> ${fmtDate(receipt.expected_end_date)}</div>
+        <div><strong>EMIs Paid:</strong> ${receipt.paid_emis} / ${receipt.total_emis}</div>
+        <div><strong>Amount Left:</strong> ${fmtAmount(receipt.remaining_amount)}</div>
+      </div>
+      <div class="progress-track"><div class="progress-bar" style="width:${receipt.progress_percent}%"></div></div>
+    `;
+    loadPaymentOptions();
+    loadActiveLoans();
+  }
+}
+
+async function loadHistory() {
+  const res = await apiFetch("/borrower/payments");
+  const data = await res.json();
+  renderTable("history-table", data, [
+    { key: "payment_date",  label: "Date" },
+    { label: "Loan #",      render: r => "Loan " + r.loan_id },
+    { label: "Amount",      render: r => fmtCurrency(r.amount_paid) },
+    { key: "payment_mode",  label: "Mode" }
+  ]);
+}
+
+if (requireRole("borrower")) {
+  show("active");
+}
+</script>
+</body>
+</html>

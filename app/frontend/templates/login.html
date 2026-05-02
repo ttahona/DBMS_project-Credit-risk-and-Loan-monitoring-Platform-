@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-box">
+    <div class="login-brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </div>
+      <h2>Loan Manager</h2>
+      <p>Credit Risk &amp; Monitoring Platform</p>
+    </div>
+    <label for="role">Role</label>
+    <select id="role">
+      <option value="admin">Admin</option>
+      <option value="staff">Staff</option>
+      <option value="borrower">Borrower</option>
+    </select>
+    <label for="username">Username</label>
+    <input type="text" id="username" placeholder="Username">
+    <label for="password">Password</label>
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="doLogin()">Login</button>
+    <div class="err" id="err"></div>
+  </div>
+</div>
+<script>
+async function doLogin() {
+  const role = document.getElementById("role").value;
+  const username = document.getElementById("username").value;
+  const password = document.getElementById("password").value;
+  const res = await fetch("/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password, role })
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    document.getElementById("err").textContent = data.detail || "Login failed";
+    return;
+  }
+  localStorage.setItem("token", data.token);
+  localStorage.setItem("role", data.role);
+  globalThis.location.href = "/" + data.role + "/";
+}
+</script>
+</body>
+</html>
